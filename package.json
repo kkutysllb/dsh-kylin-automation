@@ -1,6 +1,6 @@
 {
   "name": "dsh-kylin-automation",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DSH 定时任务插件：把可复用、可边界化的编码任务按一次性/固定间隔/每天/每周计划投递到全新根 Agent 会话独立执行，Web 侧边栏独立页面与 Agent 工具双入口管理，运行历史持久可审计",
   "license": "MIT",
   "type": "module",
