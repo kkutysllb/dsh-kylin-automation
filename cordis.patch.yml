@@ -1,0 +1,14 @@
+# One installable bundle row mounts the Host service; the dsh.client half is
+# the Web 控制页（侧边栏菜单项 + 独立 main 面板）。
+- insert:
+    - id: dsh-kylin-automation
+      name: 'dsh-kylin-automation'
+      config:
+        # 全局并发执行闸（Host 内所有 run 共享）。
+        maxConcurrentRuns: 2
+        # 单次运行墙钟上限（分钟），超时取消并记 failed。
+        runTimeoutMinutes: 60
+        # 停机恢复补跑宽限（分钟）：只有最新一个到期 occurrence 可以补跑。
+        misfireGraceMinutes: 15
+        # 每个自动化保留的终态运行记录上限；queued/running 永不裁剪。
+        historyLimit: 200

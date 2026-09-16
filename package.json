@@ -1,0 +1,70 @@
+{
+  "name": "dsh-kylin-automation",
+  "version": "0.1.0",
+  "description": "DSH 定时任务插件：把可复用、可边界化的编码任务按一次性/固定间隔/每天/每周计划投递到全新根 Agent 会话独立执行，Web 侧边栏独立页面与 Agent 工具双入口管理，运行历史持久可审计",
+  "license": "MIT",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.19"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-api-remotes"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --import ./tests/register-dsh-stubs.mjs --import tsx --test tests/*.test.ts",
+    "check": "pnpm typecheck && pnpm test && pnpm build"
+  },
+  "dependencies": {
+    "luxon": "^3.7.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/luxon": "^3.7.1",
+    "@types/node": "^24.0.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "esbuild": "^0.25.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "automation",
+    "scheduled-task",
+    "coding-agent",
+    "cordis",
+    "kylin"
+  ]
+}
