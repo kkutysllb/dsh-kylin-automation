@@ -15,6 +15,7 @@
   },
   "files": [
     "lib",
+    "release",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"
@@ -38,10 +39,15 @@
     }
   },
   "scripts": {
-    "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node --import ./tests/register-dsh-stubs.mjs --import tsx --test tests/*.test.ts",
-    "check": "pnpm typecheck && pnpm test && pnpm build"
+    "build": "node scripts/build.mjs",
+    "check": "npm run typecheck && npm run test && npm run build",
+    "smoke": "node scripts/smoke-plugin.mjs",
+    "prepack": "npm run check && npm run smoke",
+    "release:notes": "node scripts/create-github-releases.mjs",
+    "sync:mirror": "node scripts/sync-to-dsh-plugins.mjs",
+    "sync:check": "node scripts/sync-to-dsh-plugins.mjs --check"
   },
   "dependencies": {
     "luxon": "^3.7.2",
@@ -66,5 +72,12 @@
     "coding-agent",
     "cordis",
     "kylin"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kkutysllb/dsh-kylin-automation.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }
