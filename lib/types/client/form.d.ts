@@ -11,6 +11,8 @@ export interface Translate {
 export interface EditorForm {
     name: string;
     prompt: string;
+    /** Registered workspace id the new rule binds to. */
+    workspaceId: string;
     scheduleKind: 'once' | 'interval' | 'daily' | 'weekly';
     onceAt: string;
     everyMinutes: string;
@@ -24,7 +26,7 @@ export interface EditorForm {
     effort: string;
 }
 /** Fresh form pre-filled for "in about an hour". */
-export declare function emptyForm(nowIso: string): EditorForm;
+export declare function emptyForm(nowIso: string, workspaceId?: string): EditorForm;
 /** ISO instant → datetime-local input value (browser-local). */
 export declare function localInputValue(date: Date): string;
 /** Form → wire schedule; returns a validation message when invalid. */

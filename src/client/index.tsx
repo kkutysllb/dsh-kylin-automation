@@ -20,7 +20,17 @@ export const name = 'dsh-kylin-automation'
 
 /** Services this client plugin composes against; each is provided by a
  * dsh.client.inject package row in the roster. */
-export const inject = ['slots', 'locale', 'sessions', 'layout', 'connection', 'remote'] as const
+export const inject = [
+  'slots',
+  'locale',
+  'sessions',
+  'layout',
+  'connection',
+  'remote',
+  /** Remote namespaces are fail-closed services: the session namespace must be
+   * injected by name before `ctx.remote.session` is readable. */
+  'remote.session',
+] as const
 
 /** Main panel id — shared by the panellist entry and the keyed main entry. */
 const PANEL_ID = 'kyl-automations'
@@ -152,7 +162,13 @@ export function apply(ctx: ClientContext): void {
     if (remoteSession?.modelCatalog === undefined) {
       throw new Error('模型目录不可用 (the model catalog is unavailable)')
     }
-    return normalizeCatalog(await remoteSession.modelCatalog())
+    // The Typert Remote answers in the {ok, value}/{ok, error} envelope.
+    const response = await remoteSession.modelCatalog() as { ok?: unknown; value?: unknown; error?: { code?: unknown; message?: unknown } }
+    if (response?.ok !== true) {
+      const message = typeof response?.error?.message === 'string' ? response.error.message : String(response?.error?.code ?? 'unknown')
+      throw new Error(`模型目录加载失败 (the model catalog failed to load): ${message}`)
+    }
+    return normalizeCatalog(response.value)
   }
 
   // ── sidebar menu entry + independent main panel (official slots) ──────────

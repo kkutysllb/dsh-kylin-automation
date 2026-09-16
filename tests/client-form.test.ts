@@ -17,7 +17,7 @@ import { unwrapRpcResult } from '../src/client/protocol.ts'
 
 function form(overrides: Partial<ReturnType<typeof emptyForm>> = {}): ReturnType<typeof emptyForm> {
   return {
-    ...emptyForm('2026-03-05T02:00:00.000Z'),
+    ...emptyForm('2026-03-05T02:00:00.000Z', 'ws-1'),
     ...overrides,
   }
 }

@@ -55,6 +55,8 @@ export function AutomationsView(props: AutomationsViewProps): React.ReactElement
   const { t, runtime, lang, openSession, backToConversation, loadModelCatalog } = props
   const state = useSyncExternalStore(runtime.source.subscribe, runtime.source.getSnapshot)
   const [editor, setEditor] = useState<EditorState>({ open: false, mode: 'create', form: emptyForm(new Date().toISOString()) })
+  // Workspace filter across the whole registry ('' = 全部工作区).
+  const [workspaceFilter, setWorkspaceFilter] = useState<string>('')
   const [notice, setNotice] = useState<string | undefined>(undefined)
 
   // Visibility-gated poll: hidden tabs pause reads; returning refreshes at once.
@@ -75,14 +77,31 @@ export function AutomationsView(props: AutomationsViewProps): React.ReactElement
   }, [runtime])
 
   const snapshot = state.snapshot
-  const automations = useMemo(() => [...(snapshot?.automations ?? [])], [snapshot])
-  const runs = useMemo(() => sortRunsDesc(snapshot?.runs ?? []), [snapshot])
+  const automations = useMemo(
+    () => (snapshot?.automations ?? []).filter(view => workspaceFilter === '' || view.workspaceId === workspaceFilter),
+    [snapshot, workspaceFilter],
+  )
+  const runs = useMemo(
+    () => sortRunsDesc(snapshot?.runs ?? []).filter(run => {
+      if (workspaceFilter === '') return true
+      const owner = snapshot?.automations?.find(view => view.id === run.automationId)
+      return owner !== undefined && (workspaceFilter === '' || owner.workspaceId === workspaceFilter)
+    }),
+    [snapshot, workspaceFilter],
+  )
 
   const closeEditor = (): void => {
     setEditor({ open: false, mode: 'create', form: emptyForm(new Date().toISOString()) })
   }
   const openCreate = (): void => {
-    setEditor({ open: true, mode: 'create', form: emptyForm(snapshot?.serverNow ?? new Date().toISOString()) })
+    const defaultWorkspace = workspace?.registered === true && workspace.id !== ''
+      ? workspace.id
+      : snapshot?.workspaces?.[0]?.id ?? ''
+    setEditor({
+      open: true,
+      mode: 'create',
+      form: emptyForm(snapshot?.serverNow ?? new Date().toISOString(), defaultWorkspace),
+    })
   }
   const openEdit = (automation: AutomationView): void => {
     setEditor({ open: true, mode: 'edit', automationId: automation.id, form: automationToForm(automation) })
@@ -96,6 +115,7 @@ export function AutomationsView(props: AutomationsViewProps): React.ReactElement
         await runtime.create({
           name: editor.form.name.trim(),
           prompt: editor.form.prompt,
+          workspaceId: editor.form.workspaceId,
           schedule: scheduleResult.schedule,
           timeZone: scheduleResult.timeZone,
           permission: editor.form.permission,
@@ -172,8 +192,20 @@ export function AutomationsView(props: AutomationsViewProps): React.ReactElement
       <PanelHeader t={t} onBack={backToConversation} />
       <div className='kyl-toolbar'>
         <div className='kyl-scope'>
-          <span className='kyl-chip'>{t('workspace')}: {workspace?.title ?? '—'}</span>
-          <span className='kyl-chip kyl-chip-muted' title={workspace?.cwd}>{workspace?.cwd}</span>
+          <select
+            className='kyl-input kyl-select-inline'
+            value={workspaceFilter}
+            title={workspace?.cwd}
+            onChange={event => setWorkspaceFilter(event.target.value)}
+          >
+            <option value=''>{t('allWorkspaces')}</option>
+            {(snapshot?.workspaces ?? []).map(item => (
+              <option key={item.id} value={item.id}>{item.title}</option>
+            ))}
+          </select>
+          {workspaceFilter === '' && workspace !== undefined && (
+            <span className='kyl-chip'>{t('workspace')}: {workspace.title}</span>
+          )}
           {policy !== undefined && (
             <span className='kyl-chip kyl-chip-muted'>
               {t('policyHint', { timeout: policy.runTimeoutMinutes, grace: policy.misfireGraceMinutes })}
@@ -232,6 +264,8 @@ export function AutomationsView(props: AutomationsViewProps): React.ReactElement
           t={t}
           mode={editor.mode}
           form={editor.form}
+          workspaces={snapshot?.workspaces}
+          currentCwd={workspace?.cwd}
           loadModelCatalog={loadModelCatalog}
           onChange={form => setEditor(current => ({ ...current, form }))}
           onSubmit={() => { void submitEditor() }}
@@ -348,6 +382,8 @@ function AutomationEditor(props: {
   readonly t: Translate
   readonly mode: 'create' | 'edit'
   readonly form: EditorForm
+  readonly workspaces?: readonly { readonly id: string; readonly title: string; readonly cwd: string }[] | undefined
+  readonly currentCwd?: string | undefined
   readonly loadModelCatalog?: (() => Promise<ModelCatalog>) | undefined
   readonly onChange: (form: EditorForm) => void
   readonly onSubmit: () => void
@@ -355,11 +391,22 @@ function AutomationEditor(props: {
 }): React.ReactElement {
   const { t, form, onChange } = props
   const [catalog, setCatalog] = useState<readonly ModelCatalogProviderGroup[] | undefined>(undefined)
+  const [catalogNote, setCatalogNote] = useState<string>('idle')
   useEffect(() => {
     if (form.followModel || catalog !== undefined) return
-    void props.loadModelCatalog?.()
-      .then(loaded => { setCatalog(loaded.groups) })
-      .catch(() => { setCatalog([]) })
+    if (props.loadModelCatalog === undefined) {
+      setCatalogNote('loader-missing')
+      return
+    }
+    void props.loadModelCatalog()
+      .then(loaded => {
+        setCatalog(loaded.groups)
+        setCatalogNote(`loaded:${loaded.groups.length}`)
+      })
+      .catch((error: unknown) => {
+        setCatalogNote(`error:${error instanceof Error ? error.message.slice(0, 120) : String(error).slice(0, 120)}`)
+        setCatalog([])
+      })
   }, [form.followModel, catalog, props.loadModelCatalog])
 
   const providerModels = catalog?.find(group => group.id === form.provider)?.models ?? []
@@ -370,10 +417,36 @@ function AutomationEditor(props: {
       <div
         className='kyl-editor'
         role='dialog'
+        data-catalog={catalogNote}
         aria-label={props.mode === 'create' ? t('createTitle') : t('editTitle')}
         onClick={event => { event.stopPropagation() }}
       >
         <h2 className='kyl-editor-title'>{props.mode === 'create' ? t('createTitle') : t('editTitle')}</h2>
+        {props.workspaces !== undefined && props.mode === 'create' && (
+          <label className='kyl-field'>
+            <span className='kyl-field-label'>{t('workspaceLabel')}</span>
+            <select
+              className='kyl-input'
+              value={form.workspaceId}
+              onChange={event => onChange({ ...form, workspaceId: event.target.value })}
+            >
+              <option value=''>{t('workspaceRequired')}</option>
+              {props.workspaces.map(item => (
+                <option key={item.id} value={item.id}>{item.title} · {item.cwd}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        {props.mode === 'edit' && props.workspaces !== undefined && (
+          <div className='kyl-field'>
+            <span className='kyl-field-label'>{t('workspaceLabel')}</span>
+            <span className='kyl-chip kyl-chip-muted'>
+              {props.workspaces.find(item => item.id === form.workspaceId)?.title
+                ?? props.workspaces.find(item => item.cwd === props.currentCwd)?.title
+                ?? t('workspaceRequired')}
+            </span>
+          </div>
+        )}
         <label className='kyl-field'>
           <span className='kyl-field-label'>{t('nameLabel')}</span>
           <input
@@ -577,6 +650,7 @@ function automationToForm(automation: AutomationView): EditorForm {
   return {
     name: automation.name,
     prompt: automation.prompt,
+    workspaceId: '',
     scheduleKind: automation.schedule.kind,
     onceAt: automation.schedule.at !== undefined
       ? localInputValue(new Date(Date.parse(automation.schedule.at)))

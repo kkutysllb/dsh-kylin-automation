@@ -19,7 +19,7 @@ DSH Core Schedule 是当前对话内的提醒工具（"十分钟后回到这个�
 
 ### 🕹️ 双入口，一个控制面
 
-- **DSH Web**：侧边栏「定时任务」菜单项（官方 `sidebar.panellist` slot）→ 独立管理页面（官方 `main` keyed slot，不依赖会话视图）。创建规则、暂停/恢复、立即运行、删除、查看运行历史、打开结果会话。
+- **DSH Web**：侧边栏「定时任务」菜单项（官方 `sidebar.panellist` slot）→ 独立管理页面（官方 `main` keyed slot，不依赖会话视图）。创建规则（**可自选绑定工作区**，列表支持跨工作区切换）、暂停/恢复、立即运行、删除、查看运行历史、打开结果会话、钉住 provider/model/推理力度（跟随全局亦可）。
 - **任意根 Agent**：自然语言管理，六个工具只绑定调用者自己的工作区。
 
 ### 📅 人读得懂的时间计划
@@ -70,7 +70,7 @@ pnpm check        # typecheck + test + build
 
 | 工具 | 用途 |
 | --- | --- |
-| `automation_create` | 创建绑定当前工作区的规则（可钉住 provider/model/effort） |
+| `automation_create` | 创建绑定**调用者工作区**的规则（可钉住 provider/model/effort；Web 页面创建时可自选任意已注册工作区） |
 | `automation_list` | 读规则、下次运行时刻与最近结果 |
 | `automation_update` | 改名称/提示词/计划/模型/权限/状态（仅单独暂停豁免审批） |
 | `automation_run_now` | 以相同边界排队一次手动运行 |

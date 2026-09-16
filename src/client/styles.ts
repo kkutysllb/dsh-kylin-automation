@@ -54,6 +54,7 @@ const CSS = `
 .kyl-editor{width:min(760px,100%);background:var(--dsh-color-bg,#fff);color:inherit;border:1px solid var(--dsh-color-border,rgba(127,127,127,.3));border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px;box-shadow:0 16px 48px rgba(0,0,0,.2)}
 .kyl-editor-title{margin:0;font-size:16px;font-weight:600}
 .kyl-field{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+.kyl-select-inline{max-width:280px}
 .kyl-field-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
 .kyl-field-label{font-size:12px;font-weight:600;opacity:.8}
 .kyl-input{width:100%;box-sizing:border-box;border:1px solid var(--dsh-color-border,rgba(127,127,127,.3));border-radius:8px;padding:6px 8px;font-size:12px;background:var(--dsh-color-fill-primary,transparent);color:inherit}

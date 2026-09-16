@@ -78,6 +78,12 @@ export interface RunView {
   readonly error?: { readonly code: string; readonly message: string }
 }
 
+export interface WorkspaceInfo {
+  readonly id: string
+  readonly title: string
+  readonly cwd: string
+}
+
 export interface AutomationSnapshot {
   readonly unavailable?: string
   readonly workspace?: {
@@ -86,6 +92,8 @@ export interface AutomationSnapshot {
     readonly cwd: string
     readonly registered: boolean
   }
+  /** Every registered workspace (the editor's 工作区 picker). */
+  readonly workspaces?: readonly WorkspaceInfo[]
   readonly automations?: readonly AutomationView[]
   readonly runs?: readonly RunView[]
   readonly policy?: {
@@ -99,6 +107,8 @@ export interface AutomationSnapshot {
 export interface CreateAutomationInput {
   readonly name: string
   readonly prompt: string
+  /** The registered workspace this rule binds to (Web panel picker). */
+  readonly workspaceId?: string
   readonly schedule: AutomationSchedule
   readonly timeZone: string
   readonly permission: AutomationPermission

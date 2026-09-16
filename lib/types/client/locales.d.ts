@@ -8,6 +8,9 @@ export declare const zh: {
     readonly newTask: "新建任务";
     readonly editTask: "编辑任务";
     readonly workspace: "工作区";
+    readonly allWorkspaces: "全部工作区";
+    readonly workspaceLabel: "绑定工作区";
+    readonly workspaceRequired: "请选择工作区";
     readonly scopeHint: "任务与运行历史按工作区隔离";
     readonly policyHint: "单次运行上限 {timeout} 分钟 · 补跑宽限 {grace} 分钟";
     readonly noSession: "还没有活跃会话：先开始一段对话，面板会跟随当前会话的工作区。";
@@ -100,6 +103,9 @@ export declare const dictionaries: {
         readonly newTask: "新建任务";
         readonly editTask: "编辑任务";
         readonly workspace: "工作区";
+        readonly allWorkspaces: "全部工作区";
+        readonly workspaceLabel: "绑定工作区";
+        readonly workspaceRequired: "请选择工作区";
         readonly scopeHint: "任务与运行历史按工作区隔离";
         readonly policyHint: "单次运行上限 {timeout} 分钟 · 补跑宽限 {grace} 分钟";
         readonly noSession: "还没有活跃会话：先开始一段对话，面板会跟随当前会话的工作区。";
@@ -181,5 +187,5 @@ export declare const dictionaries: {
         readonly createdHint: "已创建。建议先「立即运行」验证一次。";
         readonly charCount: "{count} 字";
     };
-    en: Record<"active" | "paused" | "everyMinutes" | "weekdays" | "title" | "revision" | "pause" | "resume" | "delete" | "unavailable" | "workspace" | "lastRun" | "statusQueued" | "statusRunning" | "statusSucceeded" | "statusFailed" | "statusSkipped" | "statusCancelled" | "loading" | "weekdayMo" | "weekdayTu" | "weekdayWe" | "weekdayTh" | "weekdayFr" | "weekdaySa" | "weekdaySu" | "openSession" | "cancel" | "createdHint" | "deleteConfirm" | "updateFailed" | "runQueued" | "backToList" | "skipOverlap" | "skipMisfire" | "createTitle" | "editTitle" | "noSession" | "subtitle" | "refresh" | "permissionReadOnly" | "permissionWorkspaceWrite" | "modelGlobal" | "nextRun" | "runNow" | "editTask" | "triggerManual" | "triggerSchedule" | "duration" | "policyHint" | "newTask" | "listTitle" | "runsTitle" | "runsEmpty" | "nameLabel" | "namePlaceholder" | "promptLabel" | "promptPlaceholder" | "timeZoneLabel" | "permissionLabel" | "modelLabel" | "save" | "emptyTitle" | "emptyHint" | "scheduleLabel" | "onceAt" | "dailyTime" | "weeklyTime" | "modelFollow" | "modelPin" | "scheduleOnce" | "scheduleInterval" | "scheduleDaily" | "scheduleWeekly" | "permissionReadOnlyHint" | "permissionWorkspaceWriteHint" | "providerLabel" | "modelIdLabel" | "effortLabel" | "effortDefault" | "nav" | "scopeHint" | "presetLabel" | "noActive" | "createFailed" | "revisionConflict" | "charCount", string>;
+    en: Record<"active" | "paused" | "everyMinutes" | "weekdays" | "title" | "revision" | "pause" | "resume" | "delete" | "unavailable" | "workspace" | "lastRun" | "statusQueued" | "statusRunning" | "statusSucceeded" | "statusFailed" | "statusSkipped" | "statusCancelled" | "loading" | "weekdayMo" | "weekdayTu" | "weekdayWe" | "weekdayTh" | "weekdayFr" | "weekdaySa" | "weekdaySu" | "openSession" | "cancel" | "createdHint" | "deleteConfirm" | "updateFailed" | "runQueued" | "backToList" | "skipOverlap" | "skipMisfire" | "createTitle" | "editTitle" | "noSession" | "subtitle" | "refresh" | "permissionReadOnly" | "permissionWorkspaceWrite" | "modelGlobal" | "nextRun" | "runNow" | "editTask" | "triggerManual" | "triggerSchedule" | "duration" | "policyHint" | "newTask" | "listTitle" | "runsTitle" | "runsEmpty" | "workspaceLabel" | "workspaceRequired" | "nameLabel" | "namePlaceholder" | "promptLabel" | "promptPlaceholder" | "timeZoneLabel" | "permissionLabel" | "modelLabel" | "save" | "allWorkspaces" | "emptyTitle" | "emptyHint" | "scheduleLabel" | "onceAt" | "dailyTime" | "weeklyTime" | "modelFollow" | "modelPin" | "scheduleOnce" | "scheduleInterval" | "scheduleDaily" | "scheduleWeekly" | "permissionReadOnlyHint" | "permissionWorkspaceWriteHint" | "providerLabel" | "modelIdLabel" | "effortLabel" | "effortDefault" | "nav" | "scopeHint" | "presetLabel" | "noActive" | "createFailed" | "revisionConflict" | "charCount", string>;
 };

@@ -185,10 +185,23 @@ export async function handleAutomationRpc(
       case 'create': {
         const input = record(body.input, 'input')
         const sessionId = optionalString(body.sessionId, 'sessionId')
-        const cwd = service.cwdForSession(sessionId)
-        if (cwd === undefined) throw new ServiceError('no-session', '需要活跃会话才能定位工作区 (a live source session is required)')
-        signal.throwIfAborted()
-        const workspace = await service.resolveWorkspace(cwd)
+        // The Web panel may pick any registered workspace; the cwd always
+        // resolves from the server-side registry record (never client text).
+        const requestedWorkspaceId = optionalString(body.workspaceId, 'workspaceId')
+        let workspace: { readonly id: string; readonly path: string }
+        if (requestedWorkspaceId !== undefined) {
+          const registered = service.registeredWorkspace(requestedWorkspaceId)
+          if (registered === undefined) {
+            return fail('invalid', `工作区不存在 (unknown workspace) ${JSON.stringify(requestedWorkspaceId)}`)
+          }
+          workspace = { id: requestedWorkspaceId, path: registered.path }
+        } else {
+          const cwd = service.cwdForSession(sessionId)
+          if (cwd === undefined) throw new ServiceError('no-session', '需要活跃会话才能定位工作区 (a live source session is required)')
+          signal.throwIfAborted()
+          const resolved = await service.resolveWorkspace(cwd)
+          workspace = { id: resolved.id, path: resolved.path }
+        }
         const agentPreset = optionalString(body.agentPreset, 'agentPreset') ?? service.agentPresetForSession(sessionId) ?? 'standard'
         const definition = await service.create(validateCreateInput({
           ...input,

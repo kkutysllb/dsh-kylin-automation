@@ -53,6 +53,8 @@ export interface SnapshotResult {
     readonly cwd: string
     readonly registered: boolean
   }
+  /** Every registered workspace (the editor's 工作区 picker). */
+  readonly workspaces?: readonly { readonly id: string; readonly title: string; readonly cwd: string }[]
   readonly automations?: readonly AutomationView[]
   readonly runs?: readonly RunView[]
   readonly policy?: {
@@ -292,6 +294,13 @@ export class AutomationService {
 
   // ── CRUD ───────────────────────────────────────────────────────────────────
 
+  /** A registered workspace by id (the Web panel's picker validates here). */
+  registeredWorkspace(id: string): { readonly path: string; readonly title: string } | undefined {
+    const workspace = this.ctx.workspaceRegistry.get(id as never)
+    if (workspace === undefined) return undefined
+    return { path: workspace.path, title: workspace.title }
+  }
+
   /** Resolve (registering if needed) the workspace bound to a session cwd. */
   async resolveWorkspace(cwd: string): Promise<{ readonly id: string; readonly title: string; readonly path: string }> {
     const existing = this.ctx.workspaceRegistry.list().find(workspace => workspace.path === cwd)
@@ -478,9 +487,12 @@ export class AutomationService {
         registered: false,
       }
     }
-    const views = this.store.automations()
-      .filter(definition => definition.target.cwd === cwd)
-      .map(definition => this.toView(definition, params.lang))
+    const workspaces = this.ctx.workspaceRegistry.list().map(registryWorkspace => ({
+      id: String(registryWorkspace.id),
+      title: registryWorkspace.title,
+      cwd: registryWorkspace.path,
+    }))
+    const views = this.store.automations().map(definition => this.toView(definition, params.lang))
     const byId = new Map(views.map(view => [view.id, view] as const))
     const runs = this.store.allRuns()
       .filter(run => byId.has(run.automationId))
@@ -490,6 +502,7 @@ export class AutomationService {
       .map(run => toRunView(run))
     return {
       workspace,
+      workspaces,
       automations: views,
       runs,
       policy: {

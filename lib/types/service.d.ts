@@ -18,6 +18,12 @@ export interface SnapshotResult {
         readonly cwd: string;
         readonly registered: boolean;
     };
+    /** Every registered workspace (the editor's 工作区 picker). */
+    readonly workspaces?: readonly {
+        readonly id: string;
+        readonly title: string;
+        readonly cwd: string;
+    }[];
     readonly automations?: readonly AutomationView[];
     readonly runs?: readonly RunView[];
     readonly policy?: {
@@ -58,6 +64,11 @@ export declare class AutomationService {
     private execute;
     /** Terminal transition for a run that never started executing. */
     private terminalWithoutDispatch;
+    /** A registered workspace by id (the Web panel's picker validates here). */
+    registeredWorkspace(id: string): {
+        readonly path: string;
+        readonly title: string;
+    } | undefined;
     /** Resolve (registering if needed) the workspace bound to a session cwd. */
     resolveWorkspace(cwd: string): Promise<{
         readonly id: string;

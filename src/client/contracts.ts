@@ -35,7 +35,8 @@ export interface ClientContext {
   }
   remote?: {
     session?: {
-      modelCatalog(): Promise<unknown>
+      /** Typert Remote envelope: { ok: true, value } | { ok: false, error }. */
+      modelCatalog(): Promise<{ ok: true; value: unknown } | { ok: false; error: { code: string; message: string } }>
     }
   }
 }

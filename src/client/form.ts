@@ -26,6 +26,8 @@ export interface Translate {
 export interface EditorForm {
   name: string
   prompt: string
+  /** Registered workspace id the new rule binds to. */
+  workspaceId: string
   scheduleKind: 'once' | 'interval' | 'daily' | 'weekly'
   onceAt: string
   everyMinutes: string
@@ -40,10 +42,11 @@ export interface EditorForm {
 }
 
 /** Fresh form pre-filled for "in about an hour". */
-export function emptyForm(nowIso: string): EditorForm {
+export function emptyForm(nowIso: string, workspaceId = ''): EditorForm {
   return {
     name: '',
     prompt: '',
+    workspaceId,
     scheduleKind: 'daily',
     onceAt: localInputValue(new Date(Date.parse(nowIso) + 3_600_000)),
     everyMinutes: '30',
