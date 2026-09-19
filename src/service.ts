@@ -72,6 +72,12 @@ export class AutomationService {
   private disposed = false
   private readonly queue: RunId[] = []
   private readonly inFlight = new Set<RunId>()
+  /** Abort signal for in-flight executions; tripped by dispose so plugin
+   * deactivation stops burning agent tokens instead of running to timeout. */
+  private readonly runAbort = new AbortController()
+  /** Execution promise registry so dispose can drain in-flight runs before
+   * the store closes (their terminal writes must not hit a closed domain). */
+  private readonly executions = new Set<Promise<void>>()
 
   private constructor(
     private readonly ctx: Context,
@@ -101,13 +107,21 @@ export class AutomationService {
     })
   }
 
-  /** Stop the clock, fail active records, close storage. */
+  /** Stop the clock, abort in-flight executions, fail active records, close storage. */
   async dispose(): Promise<void> {
     if (this.disposed) return
     this.disposed = true
     if (this.timer !== undefined) clearInterval(this.timer)
     this.timer = undefined
     this.alive = false
+    // HMR/plugin-manager contract: release everything before the manager's
+    // pnpm remove. Abort first so in-flight agent sessions take their
+    // cancellation path, then drain them (their terminal updateRun calls
+    // must land before the store closes).
+    this.runAbort.abort()
+    if (this.executions.size > 0) {
+      await Promise.allSettled([...this.executions])
+    }
     for (const run of this.store.allRuns()) {
       if (run.status !== 'queued' && run.status !== 'running') continue
       await this.terminalWithoutDispatch(run.id, 'failed', {
@@ -228,6 +242,16 @@ export class AutomationService {
   private async execute(run: AutomationRun): Promise<void> {
     this.running += 1
     this.inFlight.add(run.id)
+    const execution = this.executeInner(run)
+    this.executions.add(execution)
+    try {
+      await execution
+    } finally {
+      this.executions.delete(execution)
+    }
+  }
+
+  private async executeInner(run: AutomationRun): Promise<void> {
     try {
       const definition = this.store.automation(run.automationId)
       if (definition === undefined) {
@@ -249,10 +273,11 @@ export class AutomationService {
         ...current,
         status: 'running',
         startedAt,
-      }))
+      })).catch(() => undefined)
       const completion = await executeAutomationRun(definition, run, {
         ctx: this.ctx,
         runTimeoutMs: this.config.runTimeoutMinutes * 60_000,
+        signal: this.runAbort.signal,
       }).catch((error: unknown): import('./executor.ts').RunCompletion => ({
         status: 'failed',
         error: {
@@ -262,6 +287,9 @@ export class AutomationService {
       }))
       const status: RunStatus = completion.status === 'succeeded' ? 'succeeded'
         : completion.status === 'cancelled' ? 'cancelled' : 'failed'
+      // 终态写盘包 catch：dispose 竞态下（abort 后 store 已关闭）不能让
+      // 记账失败升级为 unhandled rejection——run 由 dispose 的兜底扫描
+      // 标记为 host_interrupted。
       await this.store.updateRun(run.id, current => ({
         ...current,
         status,
@@ -269,7 +297,7 @@ export class AutomationService {
         ...(completion.sessionId === undefined ? {} : { sessionId: completion.sessionId }),
         ...(completion.summary === undefined ? {} : { summary: completion.summary }),
         ...(completion.error === undefined ? {} : { error: completion.error }),
-      }))
+      })).catch(() => undefined)
       await this.store.pruneRetention(run.automationId, this.config.historyLimit).catch(() => undefined)
     } finally {
       this.running -= 1

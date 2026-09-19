@@ -1,6 +1,6 @@
 {
   "name": "dsh-kylin-automation",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "DSH 定时任务插件：把可复用、可边界化的编码任务按一次性/固定间隔/每天/每周计划投递到全新根 Agent 会话独立执行，Web 侧边栏独立页面与 Agent 工具双入口管理，运行历史持久可审计",
   "license": "MIT",
   "type": "module",
@@ -38,6 +38,21 @@
       ]
     }
   },
+  "qilin": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-api-remotes"
+      ]
+    }
+  },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node --import ./tests/register-dsh-stubs.mjs --import tsx --test tests/*.test.ts",
@@ -52,6 +67,21 @@
   "dependencies": {
     "luxon": "^3.7.2",
     "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-session": "*",
+    "@deepseek-ai/dsh-storage-domain": "*",
+    "@deepseek-ai/dsh-agent": "*",
+    "@deepseek-ai/dsh-workspace": "*",
+    "@deepseek-ai/dsh-agent-default-model": "*",
+    "@deepseek-ai/dsh-agent-presets": "*",
+    "@deepseek-ai/dsh-permission-presets": "*",
+    "@deepseek-ai/dsh-session-title": "*",
+    "@deepseek-ai/dsh-settings": "*",
+    "@deepseek-ai/dsh-client-connection": "*",
+    "@deepseek-ai/dsh-tools": "*",
+    "@deepseek-ai/dsh-system-prompt": "*"
   },
   "devDependencies": {
     "@types/luxon": "^3.7.1",

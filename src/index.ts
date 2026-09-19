@@ -73,6 +73,10 @@ export function humanApprovalReason(toolName: string): string {
 export async function apply(ctx: Context, rawConfig: Config): Promise<void> {
   await ctx.effect(async () => {
     const service: Service = await AutomationService.open(ctx, rawConfig)
+    // 时钟 + 崩溃恢复必须显式启动：不调用则 requestTick 因 alive=false
+    // 直接返回，定时 occurrence 永不派发（仅 automation_run_now 手动
+    // 路径可用）。
+    service.start()
     const agentTools = new Map<string, () => void>()
     const owned: Array<() => void> = []
 

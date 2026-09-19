@@ -44,12 +44,18 @@ export declare class AutomationService {
     private disposed;
     private readonly queue;
     private readonly inFlight;
+    /** Abort signal for in-flight executions; tripped by dispose so plugin
+     * deactivation stops burning agent tokens instead of running to timeout. */
+    private readonly runAbort;
+    /** Execution promise registry so dispose can drain in-flight runs before
+     * the store closes (their terminal writes must not hit a closed domain). */
+    private readonly executions;
     private constructor();
     /** Open durable storage and return the unstarted service. */
     static open(ctx: Context, rawConfig: Partial<AutomationConfig> | undefined, clock?: () => number): Promise<AutomationService>;
     /** Recovery semantics + clock start. Idempotent. */
     start(): void;
-    /** Stop the clock, fail active records, close storage. */
+    /** Stop the clock, abort in-flight executions, fail active records, close storage. */
     dispose(): Promise<void>;
     /** Crash recovery: durable queued/running records become failed(host_interrupted). */
     private recover;
@@ -62,6 +68,7 @@ export declare class AutomationService {
     /** Dispatch queued runs while capacity and per-automation exclusivity allow. */
     private pump;
     private execute;
+    private executeInner;
     /** Terminal transition for a run that never started executing. */
     private terminalWithoutDispatch;
     /** A registered workspace by id (the Web panel's picker validates here). */
