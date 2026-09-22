@@ -37,8 +37,8 @@ export interface AutomationsViewProps {
   readonly backToConversation: () => void
   /** Optional model catalog loader for the pinned-model editor. */
   readonly loadModelCatalog?: (() => Promise<ModelCatalog>) | undefined
-  /** Optional desktop directory picker (Electron shell global). Absent on
-   * plain web hosts — the manual path input remains the fallback. */
+  /** Directory picker chain (desktop bridge, then host OS chooser). Throws
+   * when neither exists — the editor surfaces the message inline. */
   readonly pickDirectory?: (() => Promise<string | null>) | undefined
 }
 
@@ -60,7 +60,9 @@ export function AutomationsView(props: AutomationsViewProps): React.ReactElement
   const [editor, setEditor] = useState<EditorState>({ open: false, mode: 'create', form: emptyForm(new Date().toISOString()) })
   // Workspace filter across the whole registry ('' = 全部工作区).
   const [workspaceFilter, setWorkspaceFilter] = useState<string>('')
-  const [notice, setNotice] = useState<string | undefined>(undefined)
+  // Transient notice line lives on the runtime so non-React bridges (index.tsx
+  // navigation/picker failures) can surface messages in the panel too.
+  const notice = useSyncExternalStore(runtime.notice.subscribe, runtime.notice.getSnapshot)
 
   // Visibility-gated poll: hidden tabs pause reads; returning refreshes at once.
   useEffect(() => {
@@ -124,7 +126,7 @@ export function AutomationsView(props: AutomationsViewProps): React.ReactElement
           permission: editor.form.permission,
           modelTarget: formToModelTarget(editor.form),
         })
-        setNotice(t('createdHint'))
+        runtime.pushNotice(t('createdHint'))
       } else if (editor.automationId !== undefined) {
         const current = automations.find(item => item.id === editor.automationId)
         await runtime.update(editor.automationId, current?.revision ?? 1, {
@@ -151,16 +153,16 @@ export function AutomationsView(props: AutomationsViewProps): React.ReactElement
       if (editor.open && editor.automationId === id && mutation === 'delete') closeEditor()
       await runtime.refresh()
     } catch (error: unknown) {
-      setNotice(`${t('updateFailed')}: ${error instanceof Error ? error.message : String(error)}`)
+      runtime.pushNotice(`${t('updateFailed')}: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
   const runNow = async (id: string): Promise<void> => {
     try {
       await runtime.runNow(id)
-      setNotice(t('runQueued'))
+      runtime.pushNotice(t('runQueued'))
     } catch (error: unknown) {
-      setNotice(`${t('updateFailed')}: ${error instanceof Error ? error.message : String(error)}`)
+      runtime.pushNotice(`${t('updateFailed')}: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -226,7 +228,7 @@ export function AutomationsView(props: AutomationsViewProps): React.ReactElement
         </div>
       </div>
       {notice !== undefined && (
-        <div className='kyl-notice' role='status' onClick={() => setNotice(undefined)}>{notice}</div>
+        <div className='kyl-notice' role='status' onClick={runtime.dismissNotice}>{notice}</div>
       )}
       <div className='kyl-body'>
         <section className='kyl-section'>
@@ -249,6 +251,15 @@ export function AutomationsView(props: AutomationsViewProps): React.ReactElement
                     onToggle={() => { void mutate(automation.id, automation.status === 'active' ? 'pause' : 'resume') }}
                     onEdit={() => openEdit(automation)}
                     onDelete={() => { void mutate(automation.id, 'delete') }}
+                    onClearHistory={() => {
+                      if (window.confirm(t('clearRunsConfirm'))) {
+                        void runtime.clearRuns(automation.id).then(count => {
+                          runtime.pushNotice(t('runsCleared', { count }))
+                        }).catch(error => {
+                          runtime.pushNotice(error instanceof Error ? error.message : String(error))
+                        })
+                      }
+                    }}
                   />
                 ))}
               </ul>
@@ -261,7 +272,20 @@ export function AutomationsView(props: AutomationsViewProps): React.ReactElement
             : (
               <ul className='kyl-runs'>
                 {runs.map(run => (
-                  <RunRow key={run.id} run={run} t={t} lang={lang} onOpenSession={openSession} />
+                  <RunRow
+                    key={run.id}
+                    run={run}
+                    t={t}
+                    lang={lang}
+                    onOpenSession={openSession}
+                    onDelete={() => {
+                      if (window.confirm(t('deleteRunConfirm'))) {
+                        void runtime.deleteRun(run.automationId, run.id).catch(error => {
+                          runtime.pushNotice(error instanceof Error ? error.message : String(error))
+                        })
+                      }
+                    }}
+                  />
                 ))}
               </ul>
             )}
@@ -305,6 +329,7 @@ function AutomationCard(props: {
   readonly onToggle: () => void
   readonly onEdit: () => void
   readonly onDelete: () => void
+  readonly onClearHistory: () => void
 }): React.ReactElement {
   const { automation, t } = props
   const active = automation.status === 'active'
@@ -340,6 +365,7 @@ function AutomationCard(props: {
           {active ? t('pause') : t('resume')}
         </button>
         <button type='button' className='kyl-btn' onClick={props.onEdit}>{t('editTask')}</button>
+        <button type='button' className='kyl-btn kyl-btn-ghost' onClick={props.onClearHistory}>{t('clearRunsLabel')}</button>
         <button type='button' className='kyl-btn kyl-btn-danger' onClick={props.onDelete}>{t('delete')}</button>
       </div>
     </li>
@@ -351,6 +377,7 @@ function RunRow(props: {
   readonly t: Translate
   readonly lang: 'zh' | 'en'
   readonly onOpenSession: (sessionId: string) => void
+  readonly onDelete: () => void
 }): React.ReactElement {
   const { run, t, lang } = props
   return (
@@ -374,6 +401,15 @@ function RunRow(props: {
             onClick={() => { if (run.sessionId !== undefined) props.onOpenSession(run.sessionId) }}
           >
             {t('openSession')}
+          </button>
+        )}
+        {run.status !== 'queued' && run.status !== 'running' && (
+          <button
+            type='button'
+            className='kyl-btn kyl-btn-ghost'
+            onClick={props.onDelete}
+          >
+            {t('runDelete')}
           </button>
         )}
       </div>
