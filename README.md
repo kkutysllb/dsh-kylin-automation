@@ -21,7 +21,7 @@ own page or by any Agent through six scoped tools.
 dsh plugin --profile web add dsh-kylin-automation
 
 # GitHub 直装（锁定版本 tag）/ install straight from GitHub at a tag
-dsh plugin --profile web add github:kkutysllb/dsh-kylin-automation#v0.1.2
+dsh plugin --profile web add github:kkutysllb/dsh-kylin-automation#v0.3.0
 
 # 或从 dsh-plugins 镜像仓 / or from the dsh-plugins mirror monorepo
 git clone git@github.com:kkutysllb/dsh-plugins.git
