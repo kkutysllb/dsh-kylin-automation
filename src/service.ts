@@ -5,6 +5,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import { statSync } from 'node:fs'
 import type { Context } from '@deepseek-ai/cordis'
 import { nextOccurrence, isValidTimeZone } from './recurrence.ts'
 import { planTick } from './scheduler.ts'
@@ -46,7 +47,6 @@ export class ServiceError extends Error {
 }
 
 export interface SnapshotResult {
-  readonly unavailable?: string
   readonly workspace?: {
     readonly id: string
     readonly title: string
@@ -329,6 +329,21 @@ export class AutomationService {
     return { path: workspace.path, title: workspace.title }
   }
 
+  /** Register a server-side directory as a workspace (管理页「新建工作区」).
+   * The path must be an absolute, existing directory on the engine host —
+   * never client-invented write targets; the registry derives id/title. */
+  async registerWorkspace(path: string): Promise<{ readonly id: string; readonly title: string; readonly path: string }> {
+    if (!path.startsWith('/') ) throw new ServiceError('invalid', '工作区路径必须是绝对路径')
+    let stats
+    try {
+      stats = statSync(path)
+    } catch {
+      throw new ServiceError('not-found', `目录不存在：${path}`)
+    }
+    if (!stats.isDirectory()) throw new ServiceError('invalid', `路径不是目录：${path}`)
+    return this.resolveWorkspace(path)
+  }
+
   /** Resolve (registering if needed) the workspace bound to a session cwd. */
   async resolveWorkspace(cwd: string): Promise<{ readonly id: string; readonly title: string; readonly path: string }> {
     const existing = this.ctx.workspaceRegistry.list().find(workspace => workspace.path === cwd)
@@ -366,6 +381,9 @@ export class AutomationService {
       updatedAt: now,
     }
     await this.store.putAutomation(definition)
+    // 新任务游标从创建时刻起算：否则首次补跑扫描会从纪元(1970)起把历史
+    // 触发点逐个记为 skipped（现象即 1970-01-xx 的已跳过记录）。
+    await this.store.advanceCursor(definition.id, this.clock())
     this.requestTick()
     return definition
   }
@@ -493,26 +511,28 @@ export class AutomationService {
 
   // ── reads ──────────────────────────────────────────────────────────────────
 
-  /** Full panel snapshot scoped to the caller session's workspace cwd. */
+  /** Full panel snapshot. With a live source session, `workspace` carries the
+   * session's own workspace (and the create form defaults to it); without
+   * one the panel runs standalone — automations list across all workspaces
+   * and the create form requires an explicit 工作区 selection. */
   async snapshot(params: {
     readonly sessionId?: string
     readonly lang: 'zh' | 'en'
   }): Promise<SnapshotResult> {
     const cwd = this.cwdForSession(params.sessionId)
-    if (cwd === undefined) {
-      return { unavailable: 'requires a live source session' }
-    }
-    let workspace: { id: string; title: string; cwd: string; registered: boolean }
-    try {
-      const resolved = await this.resolveWorkspace(cwd)
-      workspace = { id: resolved.id, title: resolved.title, cwd: resolved.path, registered: true }
-    } catch {
-      const segments = cwd.split('/').filter(Boolean)
-      workspace = {
-        id: '',
-        title: segments[segments.length - 1] ?? cwd,
-        cwd,
-        registered: false,
+    let workspace: SnapshotResult['workspace']
+    if (cwd !== undefined) {
+      try {
+        const resolved = await this.resolveWorkspace(cwd)
+        workspace = { id: resolved.id, title: resolved.title, cwd: resolved.path, registered: true }
+      } catch {
+        const segments = cwd.split('/').filter(Boolean)
+        workspace = {
+          id: '',
+          title: segments[segments.length - 1] ?? cwd,
+          cwd,
+          registered: false,
+        }
       }
     }
     const workspaces = this.ctx.workspaceRegistry.list().map(registryWorkspace => ({
@@ -529,7 +549,7 @@ export class AutomationService {
       .slice(0, SNAPSHOT_RUNS_LIMIT)
       .map(run => toRunView(run))
     return {
-      workspace,
+      ...(workspace !== undefined ? { workspace } : {}),
       workspaces,
       automations: views,
       runs,

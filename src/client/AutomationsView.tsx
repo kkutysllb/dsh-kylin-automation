@@ -37,6 +37,9 @@ export interface AutomationsViewProps {
   readonly backToConversation: () => void
   /** Optional model catalog loader for the pinned-model editor. */
   readonly loadModelCatalog?: (() => Promise<ModelCatalog>) | undefined
+  /** Optional desktop directory picker (Electron shell global). Absent on
+   * plain web hosts — the manual path input remains the fallback. */
+  readonly pickDirectory?: (() => Promise<string | null>) | undefined
 }
 
 interface EditorState {
@@ -52,7 +55,7 @@ const WEEKDAY_KEYS: readonly string[] = ['weekdayMo', 'weekdayTu', 'weekdayWe', 
 
 /** The full panel. */
 export function AutomationsView(props: AutomationsViewProps): React.ReactElement {
-  const { t, runtime, lang, openSession, backToConversation, loadModelCatalog } = props
+  const { t, runtime, lang, openSession, backToConversation, loadModelCatalog, pickDirectory } = props
   const state = useSyncExternalStore(runtime.source.subscribe, runtime.source.getSnapshot)
   const [editor, setEditor] = useState<EditorState>({ open: false, mode: 'create', form: emptyForm(new Date().toISOString()) })
   // Workspace filter across the whole registry ('' = 全部工作区).
@@ -161,17 +164,6 @@ export function AutomationsView(props: AutomationsViewProps): React.ReactElement
     }
   }
 
-  if (snapshot?.unavailable !== undefined) {
-    return (
-      <div className='kyl-panel' data-panel='automations'>
-        <PanelHeader t={t} onBack={backToConversation} />
-        <div className='kyl-empty'>
-          <div className='kyl-empty-title'>{t('noSession')}</div>
-          <div className='kyl-empty-hint'>{t('subtitle')}</div>
-        </div>
-      </div>
-    )
-  }
   if (state.phase === 'error' && snapshot === undefined) {
     return (
       <div className='kyl-panel' data-panel='automations'>
@@ -187,8 +179,21 @@ export function AutomationsView(props: AutomationsViewProps): React.ReactElement
   const workspace = snapshot?.workspace
   const policy = snapshot?.policy
 
+  // 面板内编辑操作不外溢：宿主全局快捷键（如 Cmd/Ctrl+A「全选」、C「复制」）
+  // 会在标题/提示词输入时抢走焦点并把面板切回会话——在根节点拦截冒泡与捕获。
+  const shieldHostShortcuts = (event: React.KeyboardEvent): void => {
+    if ((event.metaKey || event.ctrlKey) && ['a', 'c', 'v', 'x'].includes(event.key.toLowerCase())) {
+      event.stopPropagation()
+    }
+  }
+
   return (
-    <div className='kyl-panel' data-panel='automations'>
+    <div
+      className='kyl-panel'
+      data-panel='automations'
+      onKeyDown={shieldHostShortcuts}
+      onKeyDownCapture={shieldHostShortcuts}
+    >
       <PanelHeader t={t} onBack={backToConversation} />
       <div className='kyl-toolbar'>
         <div className='kyl-scope'>
@@ -205,6 +210,9 @@ export function AutomationsView(props: AutomationsViewProps): React.ReactElement
           </select>
           {workspaceFilter === '' && workspace !== undefined && (
             <span className='kyl-chip'>{t('workspace')}: {workspace.title}</span>
+          )}
+          {workspace === undefined && (
+            <span className='kyl-chip kyl-chip-muted'>{t('standaloneHint')}</span>
           )}
           {policy !== undefined && (
             <span className='kyl-chip kyl-chip-muted'>
@@ -267,6 +275,8 @@ export function AutomationsView(props: AutomationsViewProps): React.ReactElement
           workspaces={snapshot?.workspaces}
           currentCwd={workspace?.cwd}
           loadModelCatalog={loadModelCatalog}
+          pickDirectory={pickDirectory}
+          onRegisterWorkspace={path => runtime.registerWorkspace(path)}
           onChange={form => setEditor(current => ({ ...current, form }))}
           onSubmit={() => { void submitEditor() }}
           onCancel={closeEditor}
@@ -385,13 +395,19 @@ function AutomationEditor(props: {
   readonly workspaces?: readonly { readonly id: string; readonly title: string; readonly cwd: string }[] | undefined
   readonly currentCwd?: string | undefined
   readonly loadModelCatalog?: (() => Promise<ModelCatalog>) | undefined
+  readonly pickDirectory?: (() => Promise<string | null>) | undefined
+  readonly onRegisterWorkspace: (path: string) => Promise<{ readonly id: string; readonly title: string }>
   readonly onChange: (form: EditorForm) => void
   readonly onSubmit: () => void
   readonly onCancel: () => void
 }): React.ReactElement {
-  const { t, form, onChange } = props
+  const { t, form, onChange, pickDirectory } = props
   const [catalog, setCatalog] = useState<readonly ModelCatalogProviderGroup[] | undefined>(undefined)
   const [catalogNote, setCatalogNote] = useState<string>('idle')
+  const [registerOpen, setRegisterOpen] = useState(false)
+  const [newPath, setNewPath] = useState('')
+  const [registerError, setRegisterError] = useState<string | undefined>(undefined)
+  const [registering, setRegistering] = useState(false)
   useEffect(() => {
     if (form.followModel || catalog !== undefined) return
     if (props.loadModelCatalog === undefined) {
@@ -413,7 +429,7 @@ function AutomationEditor(props: {
   const modelMeta = providerModels.find(model => model.id === form.model)
 
   return (
-    <div className='kyl-editor-scrim' role='presentation' onClick={props.onCancel}>
+    <div className='kyl-editor-scrim' role='presentation'>
       <div
         className='kyl-editor'
         role='dialog'
@@ -435,6 +451,71 @@ function AutomationEditor(props: {
                 <option key={item.id} value={item.id}>{item.title} · {item.cwd}</option>
               ))}
             </select>
+            <button
+              type='button'
+              className='kyl-linkbtn'
+              onClick={() => { setRegisterOpen(open => !open); setRegisterError(undefined) }}
+            >
+              {registerOpen ? t('newWorkspaceHide') : t('newWorkspaceAction')}
+            </button>
+            {registerOpen && (
+              <div className='kyl-iter'>
+                {props.pickDirectory !== undefined && (
+                  <button
+                    type='button'
+                    className='kyl-btn'
+                    disabled={registering}
+                    onClick={() => {
+                      setRegistering(true)
+                      props.pickDirectory!()
+                        .then(picked => {
+                          if (picked === null || picked === '') return undefined
+                          return props.onRegisterWorkspace(picked).then(created => {
+                            onChange({ ...form, workspaceId: created.id })
+                            setRegisterOpen(false)
+                            setNewPath('')
+                          })
+                        })
+                        .catch((error: unknown) => {
+                          setRegisterError(error instanceof Error ? error.message : String(error))
+                        })
+                        .finally(() => setRegistering(false))
+                    }}
+                  >
+                    {registering ? t('newWorkspacePicking') : t('newWorkspacePick')}
+                  </button>
+                )}
+                <span className='kyl-field-label'>{t('newWorkspacePathLabel')}</span>
+                <input
+                  className='kyl-input'
+                  value={newPath}
+                  placeholder='/Users/you/workspace-name'
+                  spellCheck={false}
+                  onChange={event => { setNewPath(event.target.value); setRegisterError(undefined) }}
+                />
+                {registerError !== undefined && <span className='kyl-error'>{registerError}</span>}
+                <button
+                  type='button'
+                  className='kyl-btn'
+                  disabled={newPath.trim() === '' || registering}
+                  onClick={() => {
+                    setRegistering(true)
+                    props.onRegisterWorkspace(newPath.trim())
+                      .then(created => {
+                        onChange({ ...form, workspaceId: created.id })
+                        setRegisterOpen(false)
+                        setNewPath('')
+                      })
+                      .catch((error: unknown) => {
+                        setRegisterError(error instanceof Error ? error.message : String(error))
+                      })
+                      .finally(() => setRegistering(false))
+                  }}
+                >
+                  {registering ? t('newWorkspaceRegistering') : t('newWorkspaceRegister')}
+                </button>
+              </div>
+            )}
           </label>
         )}
         {props.mode === 'edit' && props.workspaces !== undefined && (

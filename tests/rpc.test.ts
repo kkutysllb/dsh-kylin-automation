@@ -32,6 +32,7 @@ function fakeService() {
       serverNow: '2026-01-01T00:00:00.000Z',
       lang,
     }),
+    registerWorkspace: async (path: string) => ({ id: 'ws-new', title: 'new', path }),
     create: async (input: unknown) => {
       await validateShape(input)
       return { id: 'kauto-2', revision: 1 }
@@ -71,11 +72,38 @@ test('snapshot returns the envelope with value', async () => {
   }
 })
 
-test('snapshot without a live session reports unavailable', async () => {
-  const service = { snapshot: async () => ({ unavailable: 'requires a live source session' }) } as never
+test('snapshot without a live session relays the standalone snapshot (no unavailable flag)', async () => {
+  const service = {
+    snapshot: async () => ({
+      workspaces: [{ id: 'ws-1', title: '研究', cwd: '/repo/a' }],
+      automations: [],
+      runs: [],
+    }),
+  } as never
   const result = await handleAutomationRpc(service, 'snapshot', {}, signal)
   assert.equal(result.ok, true)
-  if (result.ok) assert.match((result.value as { unavailable?: string }).unavailable ?? '', /live source session/)
+  if (result.ok) {
+    const value = result.value as { unavailable?: string; workspaces?: unknown[]; automations?: unknown[] }
+    assert.equal(value.unavailable, undefined)
+    assert.equal(value.workspaces?.length, 1)
+    assert.equal(value.automations?.length, 0)
+  }
+})
+
+test('register-workspace relays the registered workspace', async () => {
+  const result = await handleAutomationRpc(fakeService(), 'register-workspace', { path: '/repo/new' }, signal)
+  assert.equal(result.ok, true)
+  if (result.ok) {
+    const value = result.value as { id: string; path: string }
+    assert.equal(value.id, 'ws-new')
+    assert.equal(value.path, '/repo/new')
+  }
+})
+
+test('register-workspace requires a path', async () => {
+  const result = await handleAutomationRpc(fakeService(), 'register-workspace', {}, signal)
+  assert.equal(result.ok, false)
+  if (!result.ok) assert.equal(result.error.code, 'invalid')
 })
 
 test('non-object payloads fail with an invalid envelope', async () => {
