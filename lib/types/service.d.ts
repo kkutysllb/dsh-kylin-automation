@@ -11,7 +11,6 @@ export declare class ServiceError extends Error {
     constructor(code: string, message: string);
 }
 export interface SnapshotResult {
-    readonly unavailable?: string;
     readonly workspace?: {
         readonly id: string;
         readonly title: string;
@@ -76,6 +75,14 @@ export declare class AutomationService {
         readonly path: string;
         readonly title: string;
     } | undefined;
+    /** Register a server-side directory as a workspace (管理页「新建工作区」).
+     * The path must be an absolute, existing directory on the engine host —
+     * never client-invented write targets; the registry derives id/title. */
+    registerWorkspace(path: string): Promise<{
+        readonly id: string;
+        readonly title: string;
+        readonly path: string;
+    }>;
     /** Resolve (registering if needed) the workspace bound to a session cwd. */
     resolveWorkspace(cwd: string): Promise<{
         readonly id: string;
@@ -94,7 +101,10 @@ export declare class AutomationService {
     /** Pinned triple or the live global selection, never a mix of the two. */
     private resolveSelection;
     private requireDefinition;
-    /** Full panel snapshot scoped to the caller session's workspace cwd. */
+    /** Full panel snapshot. With a live source session, `workspace` carries the
+     * session's own workspace (and the create form defaults to it); without
+     * one the panel runs standalone — automations list across all workspaces
+     * and the create form requires an explicit 工作区 selection. */
     snapshot(params: {
         readonly sessionId?: string;
         readonly lang: 'zh' | 'en';

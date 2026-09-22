@@ -4,7 +4,7 @@
  */
 import { type AutomationSnapshot, type ClientRpc, type CreateAutomationInput, type UpdateAutomationInput } from './protocol.ts';
 export declare const RPC_CHANNEL = "/dsh-kylin-automation";
-export type PanelPhase = 'idle' | 'loading' | 'ready' | 'error' | 'unavailable';
+export type PanelPhase = 'idle' | 'loading' | 'ready' | 'error';
 export interface PanelState {
     readonly phase: PanelPhase;
     readonly snapshot?: AutomationSnapshot;
@@ -25,6 +25,11 @@ export interface AutomationsRuntime {
     update(automationId: string, expectedRevision: number, input: UpdateAutomationInput): Promise<void>;
     mutate(automationId: string, mutation: 'pause' | 'resume' | 'delete'): Promise<void>;
     runNow(automationId: string): Promise<string>;
+    /** 注册服务器上已存在的目录为新工作区（管理页「新建工作区」）。 */
+    registerWorkspace(path: string): Promise<{
+        readonly id: string;
+        readonly title: string;
+    }>;
 }
 export interface AutomationsRuntimeDeps {
     readonly rpc: ClientRpc;
