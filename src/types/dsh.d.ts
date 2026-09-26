@@ -1,11 +1,18 @@
 /** Minimal compile-time declarations for the DSH Host capabilities this plugin
  * injects at runtime. The Host provides every `@deepseek-ai/*` module; these
  * ambient declarations mirror the framework's own Context merges (verified
- * against kcoder 0.1.6-alpha.1 sources) so the plugin can typecheck and build
- * without a workspace link into the harness checkout.
+ * against kcoder 0.1.7-rc.2 sources, the 2026-09-25 fork tip) so the plugin can
+ * typecheck and build without a workspace link into the harness checkout.
  *
  * Scope discipline: only members this plugin touches, each shaped from the
  * framework source. Tightening later is mechanical.
+ *
+ * 0.1.7-rc.2 audit (alpha.1 → rc.2): every member below is unchanged except
+ * where noted inline — the `ask` decision gained the localized `displayReason`
+ * while `reason` became the audited text. The shared catch-all
+ * `{kind:'plugin', plugin}` message source was removed; this plugin never used
+ * it, declaring its own `kind: 'automation'` with the `notice` form and its
+ * bounded summary.
  */
 
 // ── agent registry ───────────────────────────────────────────────────────────
@@ -236,6 +243,19 @@ declare module '@deepseek-ai/dsh-tools' {
     readonly arguments?: unknown
     readonly signal: AbortSignal
   }
+  /** Verdict of the `tools/pre-execute` waterfall this plugin taps for human
+   * approval. `reason` is the audited text committed with the approval request
+   * and `displayReason` is the localized prompt text the approval card renders
+   * (0.1.7-rc.2 shape; absent on older hosts, which fall back to `reason`). */
+  export type PreToolDecision =
+    | { readonly kind: 'allow' }
+    | { readonly kind: 'deny'; readonly reason: string; readonly info?: unknown }
+    | { readonly kind: 'cancel' }
+    | {
+      readonly kind: 'ask'
+      readonly reason?: string
+      readonly displayReason?: { readonly en: string; readonly [locale: string]: string }
+    }
   export interface ToolRuntime {
     register(definition: {
       name: string

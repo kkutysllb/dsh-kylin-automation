@@ -3,7 +3,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import { automationToolDefs, callerFrom, definitionSummary, MUTATING_TOOLS, runSummary } from '../src/tools.ts'
-import { needsHumanApproval } from '../src/index.ts'
+import { approvalDecision, humanApprovalAsk, needsHumanApproval } from '../src/index.ts'
 
 function fakeService(overrides: Record<string, unknown> = {}) {
   const definitions = new Map<string, unknown>([
@@ -49,6 +49,39 @@ test('mutating tools require human approval; reads and pause-only updates do not
   assert.equal(needsHumanApproval(pauseOnly, true), false)
   const pauseAndPrompt = { name: 'automation_update', arguments: { id: 'a', status: 'paused', name: 'x' }, signal: signalOk.signal }
   assert.equal(needsHumanApproval(pauseAndPrompt, true), true)
+})
+
+test('approval asks carry an audited reason plus a localized display text', () => {
+  for (const name of ['automation_create', 'automation_update', 'automation_run_now', 'automation_delete']) {
+    const ask = humanApprovalAsk(name)
+    // `reason` is committed to the approval audit log and must stay
+    // locale-neutral; `displayReason` is what the approval card renders.
+    assert.ok(ask.reason.length > 0)
+    assert.doesNotMatch(ask.reason, /[\u4e00-\u9fff]/, `${name} reason must stay locale-neutral`)
+    assert.equal(typeof ask.displayReason.en, 'string')
+    assert.equal(typeof ask.displayReason.zh, 'string')
+    assert.ok((ask.displayReason.en ?? '').length > 0 && (ask.displayReason.zh ?? '').length > 0)
+    assert.match(ask.displayReason.zh ?? '', /[\u4e00-\u9fff]/)
+  }
+  // Each mutating verb explains itself rather than sharing one generic line.
+  const deleteAsk = humanApprovalAsk('automation_delete')
+  assert.notEqual(deleteAsk.reason, humanApprovalAsk('automation_update').reason)
+  assert.match(deleteAsk.displayReason.zh ?? '', /删除/)
+})
+
+test('the pre-execute verdict attaches the localized display reason', () => {
+  const create = { name: 'automation_create', arguments: {}, signal: signalOk.signal }
+  const decision = approvalDecision(create, true)
+  assert.equal(decision?.kind, 'ask')
+  assert.equal(decision?.reason, humanApprovalAsk('automation_create').reason)
+  assert.equal(decision?.displayReason.zh, humanApprovalAsk('automation_create').displayReason.zh)
+  // Not our call to escalate: unmounted agent, aborted signal, unknown tool.
+  assert.equal(approvalDecision(create, false), undefined)
+  assert.equal(approvalDecision({ ...create, signal: AbortSignal.abort() }, true), undefined)
+  assert.equal(approvalDecision({ name: 'automation_list', arguments: {}, signal: signalOk.signal }, true), undefined)
+  assert.equal(approvalDecision({ name: 'bash', arguments: {}, signal: signalOk.signal }, true), undefined)
+  // Pause-only updates keep flowing to the downstream decision.
+  assert.equal(approvalDecision({ name: 'automation_update', arguments: { id: 'a', status: 'paused' }, signal: signalOk.signal }, true), undefined)
 })
 
 test('all six tools are present with schemas and outputs', () => {

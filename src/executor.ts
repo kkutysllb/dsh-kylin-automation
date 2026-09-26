@@ -200,15 +200,7 @@ export async function executeAutomationRun(
       ctx.sessionTitle.rename(handle.agent.session, definition.name.trim())
     }
     const firstSeq = handle.agent.session.seq
-    handle.agent.followup(createAutomationPromptMessage(run.promptSnapshot, {
-      kind: 'automation',
-      automationId: definition.id,
-      runId: run.id,
-      scheduledFor: run.scheduledFor,
-      trigger: run.trigger,
-      form: 'notice',
-      summary: `automation "${definition.name}" run ${run.id}`,
-    }))
+    handle.agent.followup(createAutomationPromptMessage(run.promptSnapshot, automationNoticeSource(definition, run)))
 
     let timedOut = false
     let aborted = false
@@ -311,6 +303,61 @@ function createAutomationPromptMessage(
     content: Object.freeze([{ type: 'text', text }]),
     source,
   })
+}
+
+/** Framework bound on a `notice`-form context summary (dsh 0.1.7-rc.2
+ * `CONTEXT_SUMMARY_MAX_CHARS` in `@deepseek-ai/dsh-llm`). Inlined because the
+ * plugin bundle must not import `@deepseek-ai/*` at run time. */
+export const CONTEXT_SUMMARY_MAX_CHARS = 120
+
+/** Fixed parts of the notice account, used to derive the name budget so the
+ * identity (which a reader needs verbatim) can never be truncated away. */
+const NOTICE_PREFIX = 'automation "'
+const NOTICE_INFIX = '" run '
+
+/** Bound one notice account exactly the way the framework's own
+ * `boundContextSummary` does, so the collapsed transcript row keeps the
+ * documented width. */
+export function boundContextSummary(summary: string): string {
+  return summary.length <= CONTEXT_SUMMARY_MAX_CHARS
+    ? summary
+    : `${summary.slice(0, CONTEXT_SUMMARY_MAX_CHARS - 1)}…`
+}
+
+/** Source of the automation prompt message: the plugin's own merge-extensible
+ * `kind` plus the `notice` context form (one-line account, no expansion).
+ * dsh 0.1.7 removed the shared catch-all `{kind:'plugin'}` source, so a
+ * producer declares its own kind — and a `notice` must carry its bounded
+ * `summary` in the durable log. */
+export function automationNoticeSource(
+  definition: { readonly id: string; readonly name: string },
+  run: { readonly id: string; readonly scheduledFor: string; readonly trigger: string },
+): {
+  readonly kind: 'automation'
+  readonly automationId: string
+  readonly runId: string
+  readonly scheduledFor: string
+  readonly trigger: string
+  readonly form: 'notice'
+  readonly summary: string
+} {
+  const label = definition.name.trim() === '' ? definition.id : definition.name.trim()
+  const nameBudget = Math.max(
+    8,
+    CONTEXT_SUMMARY_MAX_CHARS - NOTICE_PREFIX.length - NOTICE_INFIX.length - run.id.length,
+  )
+  const name = label.length <= nameBudget ? label : `${label.slice(0, nameBudget - 1)}…`
+  return {
+    kind: 'automation',
+    automationId: definition.id,
+    runId: run.id,
+    scheduledFor: run.scheduledFor,
+    trigger: run.trigger,
+    form: 'notice',
+    // The framework bound is the guarantee; the derived budget keeps the run
+    // identity readable when a definition name is pathologically long.
+    summary: boundContextSummary(`${NOTICE_PREFIX}${name}${NOTICE_INFIX}${run.id}`),
+  }
 }
 
 /** Local bound matching `boundSummary` without importing the client module. */

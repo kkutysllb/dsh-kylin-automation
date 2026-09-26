@@ -59,14 +59,64 @@ export function needsHumanApproval(
   return !(args['status'] === 'paused' && Object.keys(args).every(key => key === 'id' || key === 'status'))
 }
 
-export function humanApprovalReason(toolName: string): string {
+/** One `ask` decision's audited reason plus its localized prompt text. */
+export interface ApprovalAsk {
+  /** Locale-neutral audited reason persisted with the approval request. */
+  readonly reason: string
+  /** Localized prompt text; `ui-approval` resolves it through the active
+   * locale and falls back to `en`. */
+  readonly displayReason: { readonly en: string; readonly [locale: string]: string }
+}
+
+/**
+ * Build the approval decision for one mutating management tool.
+ *
+ * dsh 0.1.7 split the two faces of an approval prompt: `reason` is the audited
+ * text committed with the request (so the audit trail never depends on the
+ * reader's locale) and `displayReason` is the localized text the approval card
+ * renders. Older hosts ignore the extra field and fall back to `reason`, which
+ * is why both carry the complete explanation.
+ */
+export function humanApprovalAsk(toolName: string): ApprovalAsk {
   if (toolName === 'automation_delete') {
-    return '此操作会永久删除定时任务定义（运行历史保留但调度不可恢复）。'
+    return {
+      reason: 'This permanently deletes the automation definition; run history is retained but scheduling cannot be restored.',
+      displayReason: {
+        en: 'This permanently deletes the scheduled task definition (run history is retained, but scheduling cannot be restored).',
+        zh: '此操作会永久删除定时任务定义（运行历史保留，但调度不可恢复）。',
+      },
+    }
   }
   if (toolName === 'automation_create') {
-    return '该操作将创建无人值守的未来执行任务。请确认任务提示词、时间计划、工作区与权限边界。'
+    const en = 'This creates unattended future execution. Confirm the task prompt, schedule, workspace, and permission boundary.'
+    return {
+      reason: en,
+      displayReason: {
+        en,
+        zh: '该操作将创建无人值守的未来执行任务。请确认任务提示词、时间计划、工作区与权限边界。',
+      },
+    }
   }
-  return '该操作将创建或扩大无人值守的未来执行范围，请确认任务计划与权限边界。'
+  const en = 'This creates or widens unattended future execution. Confirm the schedule and permission boundary.'
+  return {
+    reason: en,
+    displayReason: {
+      en,
+      zh: '该操作将创建或扩大无人值守的未来执行范围，请确认任务计划与权限边界。',
+    },
+  }
+}
+
+/** The `tools/pre-execute` verdict this plugin contributes for one call, or
+ * `undefined` when the call is not this plugin's to escalate. Extracted from
+ * the hook body so the escalation contract is unit-testable without a model. */
+export function approvalDecision(
+  exec: { readonly name: string; readonly arguments?: unknown; readonly signal: AbortSignal },
+  mountedAgent: boolean,
+): ({ readonly kind: 'ask' } & ApprovalAsk) | undefined {
+  if (!needsHumanApproval(exec, mountedAgent)) return undefined
+  const ask = humanApprovalAsk(exec.name)
+  return { kind: 'ask', reason: ask.reason, displayReason: ask.displayReason }
 }
 
 /** Mount one host-wide authority and agent-scoped management tools. */
@@ -124,15 +174,11 @@ export async function apply(ctx: Context, rawConfig: Config): Promise<void> {
       const mounted = caller.sessionId !== undefined
         && !isAutomationRunSession(caller.sessionId)
         && agentTools.has(caller.sessionId)
-      const wantsApproval = needsHumanApproval(
+      const decision = approvalDecision(
         exec as { name: string; arguments?: unknown; signal: AbortSignal },
         mounted,
       )
-      if (!wantsApproval) return downstream
-      return {
-        kind: 'ask' as const,
-        reason: humanApprovalReason((exec as { name: string }).name),
-      }
+      return decision ?? downstream
     }))
 
     const removeRpc = registerAutomationRpc(ctx, service)
@@ -155,4 +201,10 @@ export async function apply(ctx: Context, rawConfig: Config): Promise<void> {
   }, 'dsh-kylin-automation: service')
 }
 
-const ANNOUNCEMENT = `本机已安装 dsh-kylin-automation 插件（定时任务）。把"完整可自足"的编码任务按时间计划投递到全新根 Agent 会话独立执行，运行历史持久可审计。六个工具：automation_create（创建规则：一次性/固定间隔≥5min/每天/每周，daily/weekly 需 IANA 时区，权限 read-only 或 workspace-write，缺省跟随全局模型，可传 modelTarget 钉住 provider/model/effort）、automation_list（本工作区任务清单）、automation_update（部分更新；仅 status=paused 单独暂停豁免人工审批）、automation_run_now（立即跑一次，先验证再依赖调度）、automation_runs（运行历史：状态/摘要/错误/结果会话 id）、automation_delete（删除定义，历史保留）。注意：定时任务不继承当前对话；任务提示词必须自包含（目标、证据、允许改动、验收与停止条件）。管理操作会产生未来自动执行，用户会收到人工审批确认。Web 侧边栏「定时任务」入口提供独立管理页面。`
+/** One bounded capability announcement. Deliberately states only what the tool
+ * schemas and results cannot: the tool roster, the three non-obvious workflow
+ * constraints, and the Web entry point. dsh 0.1.7's prompt-budget policy
+ * removed system-prompt restatements of tool parameters (the standard preset's
+ * first-turn prompt shrank ~18% in that release), so per-parameter rules stay
+ * in the parameter descriptions. */
+const ANNOUNCEMENT = `本机已安装 dsh-kylin-automation 插件（定时任务）：把任务按时间计划投递到全新根 Agent 会话独立执行，运行历史持久可审计。六个工具：automation_create / automation_list / automation_update / automation_run_now / automation_runs / automation_delete（参数与返回值见工具描述；automation_list 只列调用者自己工作区的任务）。三个非显然约束：① 定时任务不继承当前对话，任务提示词必须自包含（目标、证据、允许改动、验收与停止条件）；② 先用 automation_run_now 验证一次，再依赖调度；③ 创建/更新/立即运行/删除会扩大无人值守范围，需用户人工审批（仅 status=paused 的单独暂停豁免）。Web 侧边栏「定时任务」入口提供独立管理页面。`
