@@ -3,7 +3,7 @@
  * dsh-kylin-automation → dsh-plugins 真源镜像同步。
  *
  * 方向：本仓（开发真源）→ ../dsh-plugins/dsh-kylin-automation/（分发镜像）。
- * 镜像内容与 package.json files 白名单一致（可安装包形态）+ LICENSE；
+ * 镜像内容 = package.json files 白名单 + package.json + LICENSE（可安装包形态）；
  * 不镜像 src/tsconfig/tests/node_modules/pnpm-lock/.git 等。
  *
  * 用法：
@@ -27,9 +27,13 @@ const PLUGINS_DIR = process.env.KCODER_PLUGINS_DIR
   : DEFAULT_PLUGINS_DIR
 const MIRROR = join(PLUGINS_DIR, 'dsh-kylin-automation')
 
-// 与 package.json files 白名单一致 + LICENSE
 const manifest = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8'))
+// `files` 白名单 + LICENSE，另**必须**显式带上 package.json：npm 打包时自动
+// 包含 manifest 所以 files 里从不写它，但镜像目录是按路径安装的——没有
+// manifest 时 pnpm 会以 0.0.0 装进一个没有 `dsh.bundle.patch` / `exports` 的
+// 空壳目录，插件根本加载不起来。--check 会把它当差异拦住。
 const COPY_ENTRIES = [
+  'package.json',
   ...manifest.files.filter(entry => entry !== 'README.md'),
   'LICENSE',
 ]

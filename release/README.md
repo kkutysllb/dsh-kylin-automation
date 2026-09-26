@@ -46,7 +46,11 @@
    （把 `release/vX.Y.Z.md` 发布为对应 tag 的 Release 页面；幂等可重跑；需 gh CLI 已登录）
 8. 镜像仓对账：`node scripts/sync-to-dsh-plugins.mjs && cd ../dsh-plugins && git add -A && git commit -m "sync dsh-kylin-automation vX.Y.Z" && git push`
    再回本仓 `node scripts/sync-to-dsh-plugins.mjs --check` 零差异
-9. 双入口对账：npm / GitHub / dsh-plugins 三个安装源包内容一致（files 白名单为准）
+9. 双入口对账：npm / GitHub / dsh-plugins 三个安装源包内容一致（files 白名单 + `package.json` 为准）
+   ——**镜像目录必须含 `package.json`**：`files` 里从不写它（npm 打包自动带上），
+   但镜像目录是按路径安装的，缺 manifest 时 pnpm 会装成 0.0.0 空壳、插件加载不起来
+   （v0.3.1 修）。装完可验：`pnpm add <镜像目录>` 后 `node_modules/dsh-kylin-automation/package.json`
+   存在且 `dsh.bundle.patch` / `exports` 齐全。
 
 ## 安装渠道
 
