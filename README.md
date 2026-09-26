@@ -11,7 +11,8 @@ own page or by any Agent through six scoped tools.
 
 参考 [titanwings/dsh-automation](https://github.com/titanwings/dsh-automation)
 的产品模型，按 kcoder 0.1.6-alpha.1 框架能力原生重写（官方槽位注册、新版
-工具契约、零 `@deepseek-ai/*` 运行时导入）。
+工具契约、零 `@deepseek-ai/*` 运行时导入），并持续对齐到当前基线
+**kcoder / dsh 0.1.7-rc.2**。
 
 ## 安装 / Install
 
@@ -21,7 +22,7 @@ own page or by any Agent through six scoped tools.
 dsh plugin --profile web add dsh-kylin-automation
 
 # GitHub 直装（锁定版本 tag）/ install straight from GitHub at a tag
-dsh plugin --profile web add github:kkutysllb/dsh-kylin-automation#v0.3.0
+dsh plugin --profile web add github:kkutysllb/dsh-kylin-automation#v0.3.1
 
 # 或从 dsh-plugins 镜像仓 / or from the dsh-plugins mirror monorepo
 git clone git@github.com:kkutysllb/dsh-plugins.git
@@ -33,7 +34,7 @@ dsh plugin --profile web add ./dsh-plugins/dsh-kylin-automation
 ```bash
 git clone git@github.com:kkutysllb/dsh-kylin-automation.git
 cd dsh-kylin-automation
-pnpm install && pnpm check        # typecheck + 47 tests + 双 bundle 构建
+pnpm install && pnpm check        # typecheck + 59 tests + 双 bundle 构建
 dsh plugin --profile web add /绝对路径/dsh-kylin-automation
 ```
 
@@ -46,6 +47,27 @@ Restart `dsh web` (or KCoder) after installing. Per-version changes live
 under [`release/`](release/); the `package.json` version drives update
 detection, and the release process (including npm publishing) is documented
 in [`release/README.md`](release/README.md).
+
+## 宿主兼容性基线 / Host compatibility baseline
+
+当前验证基线：**kcoder / dsh `0.1.7-rc.2`**（2026-09-25 fork 尖端）。本轮
+逐面审计的结论与采用点：
+
+| 宿主面 Host surface | 0.1.7-rc.2 变化 | 本插件 |
+| --- | --- | --- |
+| 插件 peer 兼容门 | 新增：启动 / bundle 加载 / 安装三处强制，按 `peerDependencies` 校验 `@deepseek-ai/dsh*` | **放行**——全部声明为 `*`；收窄成 `^0.1.7` 这类裸 minor 反而会被 prerelease 判定拒绝，且 QiLin 通道报告的运行时版本不保证是 dsh semver，故保持 `*` |
+| `tools/pre-execute` 的 `ask` | `reason` 改为**审计**文案，新增 `displayReason` 本地化文案（审批卡按界面语言渲染） | **已采用**——`humanApprovalAsk()` 同时给出两者；旧宿主忽略多余字段并回落到 `reason`，向后兼容 |
+| 系统提示词 / 工具描述瘦身 | 净删 3658 行，标准预设首轮提示 −18%；参数级规则收进参数描述 | **已对齐**——能力公告段 512 → 407 字（−20%），只保留工具名册与三条非显然约束 |
+| `notice` 形态上下文 | `CONTEXT_SUMMARY_MAX_CHARS = 120`；`{kind:'plugin'}` 通用消息源被删除，producer 各自声明 `kind` | **已对齐**——`automationNoticeSource()` 自带 `kind:'automation'` + `form:'notice'`，摘要按 120 字上限收敛且保留 run 身份 |
+| 工具 schema | 新增可选 `deferLoading` / `projectContent`，新增会话中动态增删工具 | **不采用**（已评估）——动态工具需配套的 tool-addition 发现链，本插件六个工具是常驻管理面，延迟声明只会让模型失去参数 schema |
+| `workspace/session-activity` | 新增归档活动缝（归档前询问哪些工作仍在跑） | **无需注册**——每次运行都是受 Agent 注册表管辖的活跃 turn，`turn` 家族已覆盖；归档运行中的会话会照常被拒或被停止，运行记录随之落 `turn_aborted` |
+| 客户端槽位 / 服务 | `ui-slots`、`ui-renderer` 连续第四版零变化；`ui-layout` 新增硬依赖 `shortcuts` | **无改动**——本插件只注册 `sidebar.panellist` + `main`，`layout` / `uiWorkspace` / `connection.rpc` / `remote.session` 形状不变，不注入 `shortcuts` |
+| 会话格式 | `SESSION_FORMAT_VERSION` 3 → 4 | **无改动**——运行历史只存 session id 与摘要，不解析日志格式 |
+
+真实运行时复验（`DSH_HOME` 隔离 profile + 0.1.7-rc.2 内核）：侧边栏入口与
+管理页渲染、注册工作区、创建任务、立即运行（新 Session / 新根 Agent /
+`read-only` 沙箱 / `never` 审批 / `automation` 消息源 / 失败落库）全部通过，
+零控制台错误。
 
 ## QiLin（麒麟）双通道适配（v0.1.2 起）
 

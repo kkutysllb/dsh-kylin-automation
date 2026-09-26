@@ -1,7 +1,14 @@
 /** Hand-typed face of the injected client services this plugin composes
  * against. The loader passes the module's exports as an object plugin, so the
  * shapes here mirror the runtime contract (verified against kcoder
- * 0.1.6-alpha.1); every consumer soft-probes before use.
+ * 0.1.7-rc.2); every consumer soft-probes before use.
+ *
+ * 0.1.7-rc.2 audit: the slot contract (`ui-slots`/`ui-renderer`) is unchanged
+ * for the fourth consecutive release, and every service below kept its shape —
+ * `layout.selectPanel`, `uiWorkspace.openSession`/`pickDirectory`,
+ * `connection.rpc.call`, and `remote.session.modelCatalog`. The release added
+ * a hard `shortcuts` client dependency to `ui-layout`, which this plugin does
+ * not compose and therefore does not inject.
  */
 import type { ModelCatalog } from './protocol.ts';
 import type { AutomationsRuntime, Translate } from './runtime.ts';

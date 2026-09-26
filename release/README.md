@@ -9,6 +9,7 @@
 
 | 版本 | 日期 | 说明 |
 |---|---|---|
+| [v0.3.1](v0.3.1.md) | 2026-09-26 | 对齐宿主 0.1.7-rc.2：审批 ask 双文案（审计 reason + 本地化 displayReason）+ notice 摘要 120 字上限 + 能力公告瘦身 20% |
 | [v0.3.0](v0.3.0.md) | 2026-09-22 | 运行历史管理（删单条/清空历史）+ runtime.notice 通知通道 + 打开会话走官方导航 + 目录选择器宿主回退链 |
 | [v0.2.0](v0.2.0.md) | 2026-09-22 | 管理页独立运行（无活跃会话不再锁死）+ register-workspace 注册工作区 + 桌面目录选择器 |
 | [v0.1.2](v0.1.2.md) | 2026-09-19 | QiLin 双通道适配（qilin.bundle.patch/client + 引擎包 peerDependencies）+ 修复定时调度未启动 + dispose 中止并排空在途执行 |
@@ -30,7 +31,7 @@
 ## 发版 checklist
 
 1. `package.json` bump `version`（semver：修复 → patch，功能 → minor，破坏性 → major）
-2. `pnpm check && node scripts/smoke-plugin.mjs` 全绿（typecheck + 47 用例 + 双 bundle + 冒烟）
+2. `pnpm check && node scripts/smoke-plugin.mjs` 全绿（typecheck + 59 用例 + 双 bundle + 冒烟）
 3. 写 `release/vX.Y.Z.md`（对照上述章节）
 4. 提交并打 tag：`git tag -a vX.Y.Z -m "..."`
 5. 推送（含 tag）：`git push origin main --tags`
